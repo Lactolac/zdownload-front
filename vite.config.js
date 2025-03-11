@@ -10,4 +10,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    host: '0.0.0.0', // Escucha en todas las interfaces de red, incluyendo la IP externa
+    port: 3000, // Puedes cambiar el puerto si es necesario
+  },
 })

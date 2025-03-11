@@ -7,7 +7,7 @@
         </a>
         <div class="ml-auto d-flex align-items-center">
           <span class="navbar-text mr-3">{{ username }}</span>
-          <button class="btn btn-custom btn-small" @click="processLogout">
+          <button class="btn btn-custom btn-small" @click="logout">
             <i class="pi pi-sign-out icon-small"></i>
           </button>
         </div>
@@ -89,17 +89,6 @@ const formatDate = (dateString) => {
   return date.toLocaleString('es-ES', options);
 };
 
-const processLogout = () => {
-  Swal.fire({
-    title: '¿Cerrar sesión?',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Sí, cerrar',
-  }).then((result) => {
-    if (result.isConfirmed) authStore.logout();
-  });
-};
-
 // Obtener logs desde la API al montar el componente
 onMounted(() => {
   axios.get('http://192.168.103.70:8003/bitacora')
@@ -120,6 +109,11 @@ onMounted(() => {
 const sortedLogs = computed(() => {
   return logs.value.slice().sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE));
 });
+
+// Función de logout
+const logout = () => {
+  authStore.logout();
+};
 </script>
 
 <style scoped>
