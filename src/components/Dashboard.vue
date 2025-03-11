@@ -91,7 +91,7 @@ const formatDate = (dateString) => {
 
 // Obtener logs desde la API al montar el componente
 onMounted(() => {
-  axios.get('http://192.168.103.70:8003/bitacora')
+  axios.get('/api/bitacora')
     .then(response => {
       logs.value = response.data; // Asegúrate de asignar los datos correctos
       logs.value.sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE)); // Ordenar por fecha de inicio en orden descendente
@@ -113,6 +113,79 @@ const sortedLogs = computed(() => {
 // Función de logout
 const logout = () => {
   authStore.logout();
+};
+
+// Función para procesar descarga parcial
+const process_partial = () => {
+  const gestor = route.value;
+  if (!gestor) {
+    Swal.fire({
+      title: 'Error',
+      text: 'Por favor, ingrese el número de ruta.',
+      icon: 'error',
+      confirmButtonText: 'Ok'
+    });
+    return;
+  }
+
+  axios.get(`/api/zdownload?gestor=${gestor}`)
+    .then(response => {
+      Swal.fire({
+        title: '¡Éxito!',
+        text: 'Descarga parcial procesada correctamente.',
+        icon: 'success',
+        confirmButtonText: 'Ok'
+      });
+    })
+    .catch(error => {
+      if (error.response && error.response.status === 504) {
+        Swal.fire({
+          title: '¡Éxito!',
+          text: 'Descarga parcial procesada correctamente.',
+          icon: 'success',
+          confirmButtonText: 'Ok'
+        });
+      } else {
+        console.error('Error al procesar la descarga parcial:', error);
+        Swal.fire({
+          title: 'Error',
+          text: 'Hubo un problema al procesar la descarga parcial. Por favor, intente de nuevo.',
+          icon: 'error',
+          confirmButtonText: 'Ok'
+        });
+      }
+    });
+};
+
+// Función para procesar descarga completa
+const process_download = () => {
+  axios.get('/api/zdownload')
+    .then(response => {
+      Swal.fire({
+        title: '¡Éxito!',
+        text: 'Descarga completa procesada correctamente.',
+        icon: 'success',
+        confirmButtonText: 'Ok'
+      });
+    })
+    .catch(error => {
+      if (error.response && error.response.status === 504) {
+        Swal.fire({
+          title: '¡Éxito!',
+          text: 'Descarga completa procesada correctamente.',
+          icon: 'success',
+          confirmButtonText: 'Ok'
+        });
+      } else {
+        console.error('Error al procesar la descarga completa:', error);
+        Swal.fire({
+          title: 'Error',
+          text: 'Hubo un problema al procesar la descarga completa. Por favor, intente de nuevo.',
+          icon: 'error',
+          confirmButtonText: 'Ok'
+        });
+      }
+    });
 };
 </script>
 
