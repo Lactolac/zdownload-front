@@ -15,12 +15,12 @@ export default defineConfig({
     port: 3000, // Puedes cambiar el puerto si es necesario
     proxy: {
       '/api': {
-        target: 'https://zdownload-dev.yes.com.sv',
+        target: 'http://192.168.103.70:8003',//https://zdownload-dev.yes.com.sv   cambiar a esta si esta en dev
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         secure: false,
         onProxyReq: (proxyReq, req, res) => {
-          proxyReq.setHeader('origin', 'https://zdownload-dev.yes.com.sv');
+          proxyReq.setHeader('origin', 'http://192.168.103.70:8003');
         }
       }
     }

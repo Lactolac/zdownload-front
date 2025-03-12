@@ -16,17 +16,8 @@
     <main class="container mt-4">
       <div class="d-flex justify-content-between mb-4">
         <div class="d-flex align-items-center">
-          <input type="time" v-model="time" class="form-control form-control-sm mr-2" max="23:00" />
-          <button class="btn btn-custom btn-small mr-2" :disabled="time === dbTIME" @click="updateSchedule(time)">
-            <i class="pi pi-refresh icon-small"></i>
-          </button>
-          <button class="btn btn-custom btn-small" @click="process_download">
-            <i class="pi pi-download icon-small"></i> Procesar completo
-          </button>
-        </div>
-        <div class="d-flex align-items-center">
           <input type="text" v-model="route" class="form-control form-control-sm mr-2" placeholder="Número de ruta" />
-          <button class="btn btn-custom btn-small" @click="process_partial">
+          <button class="btn btn-custom btn-small" @click="confirmProcessPartial">
             <i class="pi pi-download icon-small"></i> Procesar ruta
           </button>
         </div>
@@ -89,8 +80,9 @@ const formatDate = (dateString) => {
   return date.toLocaleString('es-ES', options);
 };
 
-// Obtener logs desde la API al montar el componente
-onMounted(() => {
+// Función para obtener logs desde la API
+const fetchLogs = () => {
+  loading.value = true;
   axios.get('/api/bitacora')
     .then(response => {
       logs.value = response.data; // Asegúrate de asignar los datos correctos
@@ -103,6 +95,11 @@ onMounted(() => {
     .finally(() => {
       loading.value = false;
     });
+};
+
+// Obtener logs al montar el componente
+onMounted(() => {
+  fetchLogs();
 });
 
 // Computed property para los logs ordenados
@@ -113,6 +110,22 @@ const sortedLogs = computed(() => {
 // Función de logout
 const logout = () => {
   authStore.logout();
+};
+
+// Función para confirmar y procesar descarga parcial
+const confirmProcessPartial = () => {
+  Swal.fire({
+    title: '¿Estás seguro?',
+    text: '¿Deseas procesar esta ruta?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, procesar',
+    cancelButtonText: 'Cancelar'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      process_partial();
+    }
+  });
 };
 
 // Función para procesar descarga parcial
@@ -128,6 +141,7 @@ const process_partial = () => {
     return;
   }
 
+  loading.value = true;
   axios.get(`/api/zdownload?gestor=${gestor}`)
     .then(response => {
       Swal.fire({
@@ -136,6 +150,7 @@ const process_partial = () => {
         icon: 'success',
         confirmButtonText: 'Ok'
       });
+      fetchLogs(); // Actualizar logs después de procesar
     })
     .catch(error => {
       if (error.response && error.response.status === 504) {
@@ -145,6 +160,7 @@ const process_partial = () => {
           icon: 'success',
           confirmButtonText: 'Ok'
         });
+        fetchLogs(); // Actualizar logs después de procesar
       } else {
         console.error('Error al procesar la descarga parcial:', error);
         Swal.fire({
@@ -154,11 +170,15 @@ const process_partial = () => {
           confirmButtonText: 'Ok'
         });
       }
+    })
+    .finally(() => {
+      loading.value = false;
     });
 };
 
 // Función para procesar descarga completa
 const process_download = () => {
+  loading.value = true;
   axios.get('/api/zdownload')
     .then(response => {
       Swal.fire({
@@ -167,6 +187,7 @@ const process_download = () => {
         icon: 'success',
         confirmButtonText: 'Ok'
       });
+      fetchLogs(); // Actualizar logs después de procesar
     })
     .catch(error => {
       if (error.response && error.response.status === 504) {
@@ -176,6 +197,7 @@ const process_download = () => {
           icon: 'success',
           confirmButtonText: 'Ok'
         });
+        fetchLogs(); // Actualizar logs después de procesar
       } else {
         console.error('Error al procesar la descarga completa:', error);
         Swal.fire({
@@ -185,6 +207,9 @@ const process_download = () => {
           confirmButtonText: 'Ok'
         });
       }
+    })
+    .finally(() => {
+      loading.value = false;
     });
 };
 </script>
