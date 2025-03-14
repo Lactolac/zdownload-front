@@ -17,7 +17,7 @@ export const useAuthStore = defineStore('auth', {
     actions: {
         async login(user, pass) {
             try {
-                const response = await axios.post('http://10.10.4.139:3000/login', {
+                const response = await axios.post('/auth/login', { // Utiliza el proxy '/auth'
                     user,
                     pass,
                 });
