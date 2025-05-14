@@ -2,16 +2,18 @@
   <div class="d-flex align-items-center justify-content-center vh-100">
     <div class="card custom-card-width shadow border-top-primary">
       <div class="card-body">
-        <form @submit.prevent="processLogin" ref="loginForm">
+        <form @submit.prevent="processLogin" ref="loginForm" novalidate>
           <div class="text-center mb-4">
             <img src="/src/assets/logo.png" style="height: 50px;" alt="Logo">
             <h2 class="mt-3 custom-text-color">zdownload</h2>
           </div>
           <div class="mb-3">
             <input type="text" class="form-control" id="user" v-model="login.user" placeholder="Usuario" required>
+            <div class="invalid-feedback">Por favor, ingrese su usuario.</div>
           </div>
           <div class="mb-3">
             <input type="password" class="form-control" id="pass" v-model="login.pass" placeholder="Contraseña" required>
+            <div class="invalid-feedback">Por favor, ingrese su contraseña.</div>
           </div>
           <button type="submit" class="btn btn-primary w-100 custom-button-color" :disabled="logging">
             <span v-if="logging" class="spinner-border spinner-border-sm"></span>
@@ -46,20 +48,49 @@ const logginSuccess = ref(false);
 const loginForm = ref(null);
 
 const processLogin = async () => {
-  if (!loginForm.value.checkValidity()) {
-    loginForm.value.classList.add('was-validated');
+  // Validar el formulario antes de continuar
+  const form = loginForm.value;
+  if (!form.checkValidity()) {
+    form.classList.add('was-validated');
     return;
   }
-  logging.value = true;
 
+  logging.value = true;
   try {
-    await authStore.login(login.value.user, login.value.pass);
-    loginMessage.value = 'Inicio de sesión exitoso';
-    logginSuccess.value = true;
-    router.push({ name: 'dashboard' });
+    // Intentar iniciar sesión
+    const response = await authStore.login(login.value.user, login.value.pass);
+
+    let parsedResponse;
+    // Si la respuesta es una cadena JSON, convertirla a objeto
+    if (typeof response === 'string') {
+      parsedResponse = JSON.parse(response);
+    } else {
+      parsedResponse = response;
+    }
+
+    // Validar si la respuesta tiene el formato esperado
+    if (parsedResponse && typeof parsedResponse === 'object' && 'success' in parsedResponse) {
+      if (parsedResponse.success) {
+        // Si el inicio de sesión es exitoso
+        logginSuccess.value = true;
+        loginMessage.value = 'Inicio de sesión exitoso';
+
+        // Redirigir al dashboard
+        router.push({ name: 'dashboard' });
+      } else {
+        // Si la API devuelve "success: false"
+        logginSuccess.value = false;
+        loginMessage.value = parsedResponse.msj || 'Usuario o contraseña incorrecta';
+      }
+    } else {
+      // Manejar respuestas inesperadas
+      logginSuccess.value = false;
+      loginMessage.value = 'Usuario o clave incorrecta.';
+    }
   } catch (error) {
-    loginMessage.value = error.message || 'Error al iniciar sesión';
+    // Si ocurre un error en la solicitud
     logginSuccess.value = false;
+    loginMessage.value = error.message || 'Error al procesar la solicitud';
   } finally {
     logging.value = false;
   }
@@ -87,12 +118,11 @@ body {
 
 /* Estilo personalizado para el texto y el botón */
 .custom-text-color {
-  color: #1c3d5a;/* Color azul especificado */
+  color: #1c3d5a; /* Color azul especificado */
 }
 
 .custom-button-color {
   background-color: #003d7f; /* Color azul especificado */
   border-color: #003d7f; /* Color azul especificado */
 }
-
 </style>

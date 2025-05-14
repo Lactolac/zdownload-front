@@ -7,7 +7,7 @@ const routes = [
         redirect: '/auth/login' // Redirige a la ruta del login
     },
     {
-        path: '/auth/login',
+        path: '/login',
         name: 'login',
         component: () => import('@/components/Login.vue') // Ruta al login
     },

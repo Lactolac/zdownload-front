@@ -45,6 +45,13 @@
                 <td>{{ log.HOST_N }}/{{ log.USUARIO }}</td>
                 <td>{{ log.DETAILS }}</td>
               </tr>
+              <tr v-for="log in externalLogs" :key="log.START_DATE">
+                <td>{{ log.TYPE_N }}</td>
+                <td>{{ formatDate(log.START_DATE) }}</td>
+                <td>{{ formatDate(log.END_DATE) }}</td>
+                <td>{{ log.HOST_N }}/{{ log.USUARIO }}</td>
+                <td>{{ log.DETAILS }}</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -64,11 +71,10 @@ import Swal from 'sweetalert2';
 
 const authStore = useAuthStore();
 const loading = ref(true);
-const time = ref('04:00'); // Establecer el valor predeterminado del tiempo a las 4:00 AM
-const dbTIME = ref('');
+const time = ref('04:00');
 const route = ref('');
-const tour = ref('');
 const logs = ref([]);
+const externalLogs = ref([]);
 
 const username = computed(() => authStore.user?.username || '');
 
@@ -80,14 +86,13 @@ const formatDate = (dateString) => {
   return date.toLocaleString('es-ES', options);
 };
 
-// Función para obtener logs desde la API
+// Función para obtener logs desde el primer endpoint
 const fetchLogs = () => {
   loading.value = true;
   axios.get('/api/bitacora')
     .then(response => {
-      logs.value = response.data; // Asegúrate de asignar los datos correctos
-      logs.value.sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE)); // Ordenar por fecha de inicio en orden descendente
-      console.log(logs.value); // Mostrar los datos en la consola
+      logs.value = response.data;
+      logs.value.sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE));
     })
     .catch(error => {
       console.error('Error al cargar datos:', error);
@@ -97,12 +102,24 @@ const fetchLogs = () => {
     });
 };
 
+// Función para obtener logs desde el nuevo endpoint externo
+const fetchExternalLogs = () => {
+  axios.get('https://zdownload-dev.yes.com.sv/bitacora')
+    .then(response => {
+      externalLogs.value = response.data;
+    })
+    .catch(error => {
+      console.error('Error al cargar datos externos:', error);
+    });
+};
+
 // Obtener logs al montar el componente
 onMounted(() => {
   fetchLogs();
+  fetchExternalLogs();
 });
 
-// Computed property para los logs ordenados
+// Computed property para los logs combinados
 const sortedLogs = computed(() => {
   return logs.value.slice().sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE));
 });
@@ -128,89 +145,62 @@ const confirmProcessPartial = () => {
   });
 };
 
-// Función para procesar descarga parcial
+// Función para procesar descarga parcial con validación de "DG"
 const process_partial = () => {
   const gestor = route.value;
-  if (!gestor) {
-    Swal.fire({
-      title: 'Error',
-      text: 'Por favor, ingrese el número de ruta.',
-      icon: 'error',
-      confirmButtonText: 'Ok'
-    });
-    return;
-  }
 
   loading.value = true;
-  axios.get(`/api/zdownload?gestor=${gestor}`)
-    .then(response => {
-      Swal.fire({
-        title: '¡Éxito!',
-        text: 'Descarga parcial procesada correctamente.',
-        icon: 'success',
-        confirmButtonText: 'Ok'
-      });
-      fetchLogs(); // Actualizar logs después de procesar
-    })
-    .catch(error => {
-      if (error.response && error.response.status === 504) {
+
+  // Verificar si el gestor comienza con "DG"
+  if (gestor && gestor.startsWith('DG')) {
+    // Usar el segundo endpoint
+    axios.get(`https://zdownload-dev.yes.com.sv/zdownload?gestor=${gestor}`)
+      .then(response => {
         Swal.fire({
           title: '¡Éxito!',
-          text: 'Descarga parcial procesada correctamente.',
+          text: 'Descarga parcial procesada correctamente con el segundo endpoint.',
           icon: 'success',
           confirmButtonText: 'Ok'
         });
-        fetchLogs(); // Actualizar logs después de procesar
-      } else {
-        console.error('Error al procesar la descarga parcial:', error);
+        fetchLogs();
+      })
+      .catch(error => {
+        console.error('Error al procesar la descarga parcial con el segundo endpoint:', error);
         Swal.fire({
           title: 'Error',
           text: 'Hubo un problema al procesar la descarga parcial. Por favor, intente de nuevo.',
           icon: 'error',
           confirmButtonText: 'Ok'
         });
-      }
-    })
-    .finally(() => {
-      loading.value = false;
-    });
-};
-
-// Función para procesar descarga completa
-const process_download = () => {
-  loading.value = true;
-  axios.get('/api/zdownload')
-    .then(response => {
-      Swal.fire({
-        title: '¡Éxito!',
-        text: 'Descarga completa procesada correctamente.',
-        icon: 'success',
-        confirmButtonText: 'Ok'
+      })
+      .finally(() => {
+        loading.value = false;
       });
-      fetchLogs(); // Actualizar logs después de procesar
-    })
-    .catch(error => {
-      if (error.response && error.response.status === 504) {
+  } else {
+    // Usar el primer endpoint
+    axios.get(`/api/bitacora?gestor=${gestor}`)
+      .then(response => {
         Swal.fire({
           title: '¡Éxito!',
-          text: 'Descarga completa procesada correctamente.',
+          text: 'Descarga parcial procesada correctamente con el primer endpoint.',
           icon: 'success',
           confirmButtonText: 'Ok'
         });
-        fetchLogs(); // Actualizar logs después de procesar
-      } else {
-        console.error('Error al procesar la descarga completa:', error);
+        fetchLogs();
+      })
+      .catch(error => {
+        console.error('Error al procesar la descarga parcial con el primer endpoint:', error);
         Swal.fire({
           title: 'Error',
-          text: 'Hubo un problema al procesar la descarga completa. Por favor, intente de nuevo.',
+          text: 'Hubo un problema al procesar la descarga parcial. Por favor, intente de nuevo.',
           icon: 'error',
           confirmButtonText: 'Ok'
         });
-      }
-    })
-    .finally(() => {
-      loading.value = false;
-    });
+      })
+      .finally(() => {
+        loading.value = false;
+      });
+  }
 };
 </script>
 
