@@ -31,6 +31,15 @@ export default defineConfig({
         onProxyReq: (proxyReq, req, res) => {
           proxyReq.setHeader('origin', 'http://10.10.4.139:3000');
         }
+      },
+      '/eliminartourid': {
+        target: 'http://10.10.4.139:3000', // Dirección IP de destino para autenticación
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/eliminartourid/, ''),
+        secure: false,
+        onProxyReq: (proxyReq, req, res) => {
+          proxyReq.setHeader('origin', 'http://10.10.4.139:3000');
+        }
       }
     },
     allowedHosts: [

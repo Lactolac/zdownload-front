@@ -14,11 +14,49 @@
       </nav>
     </header>
     <main class="container mt-4">
-      <div class="d-flex justify-content-between mb-4">
-        <div class="d-flex align-items-center">
+      <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+        <!-- Botones de banderas -->
+        <div class="d-flex align-items-center mb-2 mb-md-0">
+          <a href="https://estado_de_rutas.yes.com.sv/EstadosDeRutas?pais=sv" target="_blank"
+            class="btn btn-light btn-small mx-1 d-flex align-items-center" title="Ver rutas El Salvador">
+            <span style="width:22px;height:16px;display:inline-block;margin-right:6px;">
+              <svg viewBox="0 0 22 16" width="22" height="16" style="display:block;">
+                <rect width="22" height="5.33" fill="#003893" />
+                <rect y="5.33" width="22" height="5.33" fill="#fff" />
+                <rect y="10.66" width="22" height="5.33" fill="#003893" />
+              </svg>
+            </span>
+            El Salvador
+          </a>
+          <a href="https://estado_de_rutas.yes.com.sv/EstadosDeRutas?pais=gt" target="_blank"
+            class="btn btn-light btn-small mx-1 d-flex align-items-center" title="Ver rutas Guatemala">
+            <span style="width:22px;height:16px;display:inline-block;margin-right:6px;">
+              <svg viewBox="0 0 22 16" width="22" height="16" style="display:block;">
+                <rect width="7.33" height="16" fill="#4997D0" />
+                <rect x="7.33" width="7.33" height="16" fill="#fff" />
+                <rect x="14.66" width="7.34" height="16" fill="#4997D0" />
+              </svg>
+            </span>
+            Guatemala
+          </a>
+        </div>
+
+        <!-- Filtros y procesar ruta -->
+        <div class="d-flex align-items-center mb-2 mb-md-0">
+          <select v-model="selectedCountry" class="form-control form-control-sm mr-2" id="countrySelect" title="Filtrar bitacora por país">
+            <option value="sv">El Salvador</option>
+            <option value="gt">Guatemala</option>
+          </select>
           <input type="text" v-model="route" class="form-control form-control-sm mr-2" placeholder="Número de ruta" />
           <button class="btn btn-custom btn-small" @click="confirmProcessPartial">
             <i class="pi pi-download icon-small"></i> Procesar ruta
+          </button>
+        </div>
+
+        <!-- Botón eliminar Tour ID -->
+        <div>
+          <button class="btn btn-danger btn-small" @click="openDeleteTourIdModal">
+            <i class="pi pi-trash icon-small"></i> Eliminar Tour ID
           </button>
         </div>
       </div>
@@ -26,6 +64,9 @@
         El sistema se actualizará todos los días a las {{ time }}
       </div>
       <div class="card mt-4">
+        <div class="card-header font-weight-bold">
+          Bitácora
+        </div>
         <div class="card-body">
           <table class="table table-striped table-sm">
             <thead>
@@ -38,14 +79,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in sortedLogs" :key="log.START_DATE">
-                <td>{{ log.TYPE_N }}</td>
-                <td>{{ formatDate(log.START_DATE) }}</td>
-                <td>{{ formatDate(log.END_DATE) }}</td>
-                <td>{{ log.HOST_N }}/{{ log.USUARIO }}</td>
-                <td>{{ log.DETAILS }}</td>
-              </tr>
-              <tr v-for="log in externalLogs" :key="log.START_DATE">
+              <tr v-for="log in filteredLogs" :key="log.START_DATE">
                 <td>{{ log.TYPE_N }}</td>
                 <td>{{ formatDate(log.START_DATE) }}</td>
                 <td>{{ formatDate(log.END_DATE) }}</td>
@@ -64,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '@/api-plugins/authStores';
 import Swal from 'sweetalert2';
@@ -75,9 +109,26 @@ const time = ref('04:00');
 const route = ref('');
 const logs = ref([]);
 const externalLogs = ref([]);
+const selectedCountry = ref(localStorage.getItem('selectedCountry') || 'sv'); // Persistir filtro país
+
+let refreshInterval = null;
 
 const username = computed(() => authStore.user?.username || '');
 
+const filteredLogs = computed(() => {
+  let logsToShow = selectedCountry.value === 'sv' ? logs.value : externalLogs.value;
+  // Si hay un número de ruta, filtra por ese número
+  if (route.value && route.value.trim() !== '') {
+    // Filtra si el campo DETAILS (o el que corresponda) contiene el número de ruta
+    logsToShow = logsToShow.filter(
+      log => String(log.DETAILS || '').toLowerCase().includes(route.value.trim().toLowerCase())
+        || String(log.TYPE_N || '').toLowerCase().includes(route.value.trim().toLowerCase())
+        || String(log.HOST_N || '').toLowerCase().includes(route.value.trim().toLowerCase())
+        || String(log.USUARIO || '').toLowerCase().includes(route.value.trim().toLowerCase())
+    );
+  }
+  return [...logsToShow].sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE));
+});
 const formatDate = (dateString) => {
   if (!dateString) return 'Invalid Date';
   const date = new Date(dateString);
@@ -104,31 +155,111 @@ const fetchLogs = () => {
 
 // Función para obtener logs desde el nuevo endpoint externo
 const fetchExternalLogs = () => {
+  loading.value = true;
   axios.get('https://zdownload-dev.yes.com.sv/bitacora')
     .then(response => {
       externalLogs.value = response.data;
+      externalLogs.value.sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE));
     })
     .catch(error => {
       console.error('Error al cargar datos externos:', error);
+    })
+    .finally(() => {
+      loading.value = false;
     });
 };
 
-// Obtener logs al montar el componente
-onMounted(() => {
-  fetchLogs();
-  fetchExternalLogs();
+const fetchCurrentLogs = () => {
+  if (selectedCountry.value === 'sv') {
+    fetchLogs();
+  } else {
+    fetchExternalLogs();
+  }
+};
+
+// Persistencia del filtro de país
+watch(selectedCountry, (newValue) => {
+  localStorage.setItem('selectedCountry', newValue);
+  fetchCurrentLogs();
 });
 
-// Computed property para los logs combinados
-const sortedLogs = computed(() => {
-  return logs.value.slice().sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE));
+// Obtener logs al montar el componente y refrescar cada minuto
+onMounted(() => {
+  fetchCurrentLogs();
+  refreshInterval = setInterval(fetchCurrentLogs, 60000); // 1 minuto
+});
+
+onBeforeUnmount(() => {
+  if (refreshInterval) clearInterval(refreshInterval);
 });
 
 // Función de logout
 const logout = () => {
   authStore.logout();
 };
+const openDeleteTourIdModal = () => {
+  Swal.fire({
+    title: 'Digite el Tour ID que desea limpiar',
+    input: 'text',
+    inputLabel: '',
+    inputPlaceholder: 'Ingrese el Tour ID',
+    showCancelButton: true,
+    confirmButtonText: 'Aceptar',
+    cancelButtonText: 'Cancelar',
+    inputValidator: (value) => {
+      if (!value) {
+        return 'Debes ingresar un Tour ID';
+      }
+    }
+  }).then((result) => {
+    if (result.isConfirmed && result.value) {
+      const tourId = result.value.trim();
+      // Segundo modal de confirmación
+      Swal.fire({
+        title: '¿Estás seguro?',
+        text: `¿Seguro de eliminar el Tour ID: ${tourId}?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'No, cancelar'
+      }).then((confirmResult) => {
+        if (confirmResult.isConfirmed) {
+          // Llama a tu endpoint por proxy
+          deleteTourId(tourId);
+        }
+      });
+    }
+  });
+};
 
+const deleteTourId = (tourId) => {
+  loading.value = true;
+  axios.get(`/eliminartourid/functionfs?path=/DSD/ME_ADMIN_REMOVE_TOUR&where=IT_TOURID=${encodeURIComponent(tourId)}`)
+    .then(response => {
+      let data = response.data;
+      let msg = data?.ET_RETURN?.MESSAGE || `El Tour ID ${tourId} fue eliminado correctamente.`;
+      let isError = data?.ET_RETURN?.TYPE === 'E';
+      Swal.fire({
+        title: isError ? 'Error' : '¡Eliminado!',
+        text: msg,
+        icon: isError ? 'error' : 'success',
+        confirmButtonText: 'Ok'
+      });
+      fetchCurrentLogs();
+    })
+    .catch(error => {
+      Swal.fire({
+        title: 'Error',
+        text: `Error al eliminar el Tour ID: ${tourId}`,
+        icon: 'error',
+        confirmButtonText: 'Ok'
+      });
+      console.error('Error al eliminar tour id:', error);
+    })
+    .finally(() => {
+      loading.value = false;
+    });
+};
 // Función para confirmar y procesar descarga parcial
 const confirmProcessPartial = () => {
   Swal.fire({
@@ -151,7 +282,6 @@ const process_partial = () => {
 
   loading.value = true;
 
-  // Verificar si el gestor comienza con "DG"
   if (gestor && gestor.startsWith('DG')) {
     // Usar el segundo endpoint
     axios.get(`https://zdownload-dev.yes.com.sv/zdownload?gestor=${gestor}`)
@@ -162,7 +292,7 @@ const process_partial = () => {
           icon: 'success',
           confirmButtonText: 'Ok'
         });
-        fetchLogs();
+        fetchCurrentLogs();
       })
       .catch(error => {
         console.error('Error al procesar la descarga parcial con el segundo endpoint:', error);
@@ -186,7 +316,7 @@ const process_partial = () => {
           icon: 'success',
           confirmButtonText: 'Ok'
         });
-        fetchLogs();
+        fetchCurrentLogs();
       })
       .catch(error => {
         console.error('Error al procesar la descarga parcial con el primer endpoint:', error);
@@ -205,8 +335,8 @@ const process_partial = () => {
 </script>
 
 <style scoped>
-/* Asegúrate de que el fondo del cuerpo sea blanco */
-html, body {
+html,
+body {
   background-color: white;
   margin: 0;
   padding: 0;
@@ -273,28 +403,30 @@ header {
   color: #333;
 }
 
-/* Clase personalizada para iconos pequeños */
 .icon-small {
   font-size: 0.75em;
 }
 
-/* Clase personalizada para botones pequeños */
 .btn-small {
   display: inline-block;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  background: #003d7f; /* Color de fondo igual al navbar */
-  border: 1px solid #003d7f; /* Borde del mismo color */
-  color: white; /* Color de texto blanco */
+  background: #003d7f;
+  border: 1px solid #003d7f;
+  color: white;
   text-align: center;
   box-sizing: border-box;
   outline: none;
   margin: 0;
   transition: .1s;
   font-weight: 500;
-  padding: 6px 10px; /* Ajusta el padding para hacer los botones más pequeños */
-  font-size: 12px; /* Ajusta el tamaño de la fuente */
+  padding: 6px 10px;
+  font-size: 12px;
   border-radius: 4px;
+}
+
+.btn-small svg {
+  vertical-align: middle;
 }
 </style>

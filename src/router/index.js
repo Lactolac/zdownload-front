@@ -4,7 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 const routes = [
     {
         path: '/',
-        redirect: '/auth/login' // Redirige a la ruta del login
+        redirect: '/login' // Redirige a la ruta del login
     },
     {
         path: '/login',
