@@ -48,7 +48,7 @@
             <option value="gt">Guatemala</option>
           </select>
           <input type="text" v-model="route" class="form-control form-control-sm mr-2" placeholder="Número de ruta" />
-          <button class="btn btn-custom btn-small" @click="confirmProcessPartial">
+          <button class="btn btn-custom btn-small" @click="confirmProcessPartial" :disabled="loading">
             <i class="pi pi-download icon-small"></i> Procesar ruta
           </button>
         </div>
@@ -117,18 +117,10 @@ const username = computed(() => authStore.user?.username || '');
 
 const filteredLogs = computed(() => {
   let logsToShow = selectedCountry.value === 'sv' ? logs.value : externalLogs.value;
-  // Si hay un número de ruta, filtra por ese número
-  if (route.value && route.value.trim() !== '') {
-    // Filtra si el campo DETAILS (o el que corresponda) contiene el número de ruta
-    logsToShow = logsToShow.filter(
-      log => String(log.DETAILS || '').toLowerCase().includes(route.value.trim().toLowerCase())
-        || String(log.TYPE_N || '').toLowerCase().includes(route.value.trim().toLowerCase())
-        || String(log.HOST_N || '').toLowerCase().includes(route.value.trim().toLowerCase())
-        || String(log.USUARIO || '').toLowerCase().includes(route.value.trim().toLowerCase())
-    );
-  }
+  // Ya NO filtra por route.value
   return [...logsToShow].sort((a, b) => new Date(b.START_DATE) - new Date(a.START_DATE));
 });
+
 const formatDate = (dateString) => {
   if (!dateString) return 'Invalid Date';
   const date = new Date(dateString);
@@ -186,7 +178,7 @@ watch(selectedCountry, (newValue) => {
 // Obtener logs al montar el componente y refrescar cada minuto
 onMounted(() => {
   fetchCurrentLogs();
-  refreshInterval = setInterval(fetchCurrentLogs, 60000); // 1 minuto
+  refreshInterval = setInterval(fetchCurrentLogs, 20000); // 20 segundos
 });
 
 onBeforeUnmount(() => {
@@ -279,12 +271,10 @@ const confirmProcessPartial = () => {
 // Función para procesar descarga parcial con validación de "DG"
 const process_partial = () => {
   const gestor = route.value;
-
-  loading.value = true;
+  loading.value = true; // Muestra overlay y deshabilita botones
 
   if (gestor && gestor.startsWith('DG')) {
-    // Usar el segundo endpoint
-    axios.get(`https://zdownload-dev.yes.com.sv/zdownload?gestor=${gestor}`)
+    axios.get(`https://zdownload-dev.yes.com.sv/zdownload?gestor=${gestor}`, { timeout: 360000 }) // 6 minutos
       .then(response => {
         Swal.fire({
           title: '¡Éxito!',
@@ -304,11 +294,10 @@ const process_partial = () => {
         });
       })
       .finally(() => {
-        loading.value = false;
+        loading.value = false; // Oculta overlay y habilita botones
       });
   } else {
-    // Usar el primer endpoint
-    axios.get(`/api/bitacora?gestor=${gestor}`)
+    axios.get(`/api/zdownload?gestor=${gestor}`, { timeout: 360000 }) // 6 minutos
       .then(response => {
         Swal.fire({
           title: '¡Éxito!',
@@ -321,14 +310,14 @@ const process_partial = () => {
       .catch(error => {
         console.error('Error al procesar la descarga parcial con el primer endpoint:', error);
         Swal.fire({
-          title: 'Error',
-          text: 'Hubo un problema al procesar la descarga parcial. Por favor, intente de nuevo.',
+          title: 'Sin datos',
+          text: 'Hubo un problema al procesar la descarga parcial. Por favor, verificar datos.',
           icon: 'error',
           confirmButtonText: 'Ok'
         });
       })
       .finally(() => {
-        loading.value = false;
+        loading.value = false; // Oculta overlay y habilita botones
       });
   }
 };
